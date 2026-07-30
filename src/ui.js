@@ -930,7 +930,6 @@ export class SidebarPanel {
       this._renderAggregateActions()
       this._updateCleanupButton()
       if (selectionChanged) this._syncSelectionUi()
-      this.viewManager.applyView()
     })
   }
 

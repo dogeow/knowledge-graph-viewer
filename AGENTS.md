@@ -1,10 +1,13 @@
 # AGENTS.md
 
-本文件给后续编码代理使用。项目是一个 Vite + Cytoscape.js 的知识图谱编辑器，示例数据为《红楼梦》人物关系。
+本文件给后续编码代理使用。项目是一个 React + TypeScript + Vite + Cytoscape.js 的知识图谱编辑器，示例数据为《红楼梦》人物关系。项目采用渐进迁移，已验证的图谱领域模块仍有 JavaScript 文件。
 
 ## 项目概览
 
-- 入口：`index.html` + `src/main.js`
+- 入口：`index.html` + `src/main.tsx`
+- React 应用壳：`src/app/App.tsx`、`src/components/`
+- 应用装配：`src/application/KnowledgeGraphApplication.js`
+- 远程同步：`src/application/GraphSyncService.js`
 - 图渲染：`src/graph.js`，负责 Cytoscape 初始化、布局、可见性、小地图、高亮与选择样式
 - 数据状态：`src/store.js`，负责图谱数据、增删改、撤销重做、导入导出
 - 侧栏 UI：`src/ui.js`，负责搜索、视图控件、节点树、布局配置、数据操作
@@ -23,6 +26,7 @@
 
 ```bash
 npm install
+npm run typecheck
 npm run build
 npm test
 npm run test:e2e
@@ -42,8 +46,12 @@ npm run test:e2e
 
 ## 开发约定
 
-- 使用原生 JavaScript ES modules，不引入 React。
-- 保持现有模块边界：数据计算放 `src/view/` 或 `src/store.js`，DOM 控件放 `src/ui.js`，Cytoscape 样式/交互放 `src/graph.js`。
+- 新增页面 UI 使用 React + TypeScript；旧 JavaScript 模块按边界渐进迁移，不做一次性重写。
+- React 负责页面结构，Cytoscape 继续作为命令式画布适配器。不要让 React 直接渲染图节点。
+- 迁移期保留现有 DOM ID 和 `window.cy` / `window.kgStore` 测试契约；区域完成迁移后再移除对应命令式 DOM 写入。
+- 在 `GraphManager`、`InlineEditor`、`SidebarPanel` 具备完整 `destroy()` 前不要启用 React `StrictMode`。
+- 一次 store 变更只能由应用级订阅调用一次 `viewManager.applyView()`；侧栏订阅不得重复同步整图。
+- 保持现有模块边界：数据计算放 `src/view/` 或 `src/store.js`，新页面结构放 `src/components/`，尚未迁移的命令式 DOM 控件留在 `src/ui.js`，Cytoscape 样式/交互放 `src/graph.js`。
 - 修改默认图谱时优先改 `src/data/defaultGraph.raw.js`；人物首次出场回目放 `src/data/defaultGraph.chapters.js`。
 - 新增关系类型时，同步检查 `src/view/relationCategories.js`、右侧关系筛选和图上颜色。
 - 改 UI 时同时检查亮色与夜晚模式，尤其是输入框、按钮、侧栏、图谱节点/边、小地图、内联编辑器。
@@ -52,7 +60,7 @@ npm run test:e2e
 
 ## 测试
 
-- 单元测试：`tests/view.test.js`、`tests/store.test.js`
+- 单元测试：`tests/view.test.js`、`tests/store.test.js`、`tests/graphSyncService.test.js`
 - E2E 测试：`tests/e2e/*.spec.ts`
 - 视图逻辑改动应优先补 `tests/view.test.js`。
 - store/导入导出/撤销重做改动应优先补 `tests/store.test.js`。

@@ -1,6 +1,6 @@
 # 知识图谱编辑器 (Knowledge Graph Viewer)
 
-基于 Cytoscape.js + fcose 布局的交互式知识图谱编辑器，以红楼梦人物关系为示例数据。
+基于 React、TypeScript、Cytoscape.js 与 fcose 布局的交互式知识图谱编辑器，以红楼梦人物关系为示例数据。
 
 ## 功能
 
@@ -64,18 +64,31 @@ VITE_KNOWLEDGE_API_URL=https://next-api.dogeow.com
 
 ## 技术栈
 
+- [React](https://react.dev/) — 页面组件与应用壳
+- [TypeScript](https://www.typescriptlang.org/) — 新组件与模块的严格类型检查
 - [Cytoscape.js](https://js.cytoscape.org/) — 图可视化引擎
 - [cytoscape-fcose](https://github.com/iVis-at-Bilkent/cytoscape.js-fcose) — 力导向布局
 - [Vite](https://vite.dev/) — 构建工具
+- [Vitest](https://vitest.dev/) + [Playwright](https://playwright.dev/) — 逻辑与浏览器回归测试
+
+项目正在按边界渐进迁移：React 管理页面组件，Cytoscape 与已验证的图谱领域模块继续通过适配层工作，避免一次性重写造成交互回归。详见 [`docs/architecture.md`](docs/architecture.md)。
 
 ## 项目结构
 
 ```
-├── index.html              # 入口 HTML
+├── index.html              # React 挂载点
 ├── vite.config.js          # Vite 配置
+├── tsconfig.json           # TypeScript 严格配置
 ├── package.json
+├── docs/
+│   └── architecture.md     # 分层、状态归属与迁移规则
 └── src/
-    ├── main.js             # 应用入口，组件初始化
+    ├── main.tsx            # React 入口
+    ├── app/App.tsx         # 应用壳与启动生命周期
+    ├── components/         # 工具栏、画布、侧栏、菜单等页面组件
+    ├── application/
+    │   ├── KnowledgeGraphApplication.js # 依赖装配与工作区命令
+    │   └── GraphSyncService.js           # API 与自动保存协调
     ├── store.js            # 数据状态管理（节点/边/撤销栈）
     ├── graph.js            # Cytoscape 图渲染、布局、高亮
     ├── editor.js           # 内联编辑、键盘交互、撤销重做
