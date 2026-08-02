@@ -49,6 +49,7 @@ React 组件保留旧 DOM ID，是为了让现有命令式控制器和 Playwrigh
 5. 现有 `window.cy` 与 `window.kgStore` 仅作为 E2E 和迁移兼容接口；最终替换为显式命令接口。
 6. 不直接把 timer、Promise、Cytoscape 实例或草稿节点放进 React 状态库。
 7. 迁移期命令式开关必须从当前 DOM class 读取状态，再由同一个方法同步 class、ARIA、`inert` 与遮罩；不得用第二份布尔值推测下一状态。
+8. Cytoscape 画布位于可收缩的 flex 区域时，画布宿主必须允许收缩并裁剪溢出；侧栏回归不能只断言自身可见，还要用命中测试确认未被旧尺寸 canvas 遮挡。
 
 ## 后续顺序
 

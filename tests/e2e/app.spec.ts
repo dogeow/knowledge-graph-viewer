@@ -53,6 +53,35 @@ async function expectDesktopSidebarState(page: Page, open: boolean) {
   expect(sidebarBox).not.toBeNull()
   expect(sidebarBox?.x ?? -1).toBeGreaterThanOrEqual(0)
   expect((sidebarBox?.x ?? 0) + (sidebarBox?.width ?? 0)).toBeLessThanOrEqual((viewport?.width ?? 0) + 1)
+
+  await expect.poll(() => page.evaluate(() => {
+    const sidebar = document.getElementById('sidebar')
+    const activeTab = document.querySelector('#sidebar .tab.active')
+    const graphPane = document.getElementById('graph-pane')
+    const cy = document.getElementById('cy')
+    if (!sidebar || !activeTab || !graphPane || !cy) return null
+
+    const tabRect = activeTab.getBoundingClientRect()
+    const graphRect = graphPane.getBoundingClientRect()
+    const cyRect = cy.getBoundingClientRect()
+    const topElement = document.elementFromPoint(
+      tabRect.left + tabRect.width / 2,
+      tabRect.top + tabRect.height / 2
+    )
+    const canvasesFit = [...cy.querySelectorAll('canvas')].every((canvas) => (
+      canvas.getBoundingClientRect().right <= graphRect.right + 1
+    ))
+
+    return {
+      sidebarReceivesPointer: Boolean(topElement && sidebar.contains(topElement)),
+      cyFitsGraphPane: cyRect.right <= graphRect.right + 1,
+      canvasesFit,
+    }
+  })).toEqual({
+    sidebarReceivesPointer: true,
+    cyFitsGraphPane: true,
+    canvasesFit: true,
+  })
 }
 
 test.describe('知识图谱编辑器 - E2E', () => {
