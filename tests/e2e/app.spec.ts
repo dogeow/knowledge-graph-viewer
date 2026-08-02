@@ -111,6 +111,36 @@ test.describe('知识图谱编辑器 - E2E', () => {
     await expectDesktopSidebarState(page, false)
     await sidebarToggle.click()
     await expectDesktopSidebarState(page, true)
+
+    // 桌面端主菜单与侧边栏不是同一个抽屉。即使页面恢复让主菜单 DOM 与
+    // 旧控制器状态短暂错位，关闭侧边栏后也不能把切换按钮永久设为 inert。
+    await page.locator('#btn-app-menu').click()
+    await expect(page.locator('#app-menu')).toHaveClass(/app-menu-open/)
+    await page.evaluate(() => {
+      const menu = document.getElementById('app-menu')
+      const backdrop = document.getElementById('app-menu-backdrop')
+      const controls = [
+        document.getElementById('graph-pane'),
+        document.getElementById('detail-panel'),
+        document.querySelector('.toolbar-search-control'),
+        document.getElementById('view-mode-select'),
+        document.getElementById('btn-app-menu'),
+        document.getElementById('btn-sidebar-toggle'),
+      ]
+      menu?.classList.remove('app-menu-open')
+      menu?.setAttribute('aria-hidden', 'true')
+      if (menu) menu.inert = true
+      if (backdrop) backdrop.hidden = true
+      controls.forEach((control) => {
+        if (control instanceof HTMLElement) control.inert = false
+      })
+    })
+
+    await sidebarToggle.click()
+    await expectDesktopSidebarState(page, false)
+    await expect(sidebarToggle).toHaveJSProperty('inert', false)
+    await sidebarToggle.click()
+    await expectDesktopSidebarState(page, true)
   })
 
   test('只有中心节点时删除图谱不需要确认', async ({ page }) => {

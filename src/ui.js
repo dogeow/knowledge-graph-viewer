@@ -20,7 +20,6 @@ export class SidebarPanel {
     this._knownHierarchyEdgeIds = new Set()
     this._treeClickTimer = null
     this.moveSourceId = null
-    this._appMenuOpen = false
     this._appMenuReturnFocus = null
     this._workspaceSidebarReturnFocus = null
 
@@ -108,7 +107,7 @@ export class SidebarPanel {
 
     if (!this.appMenu || !this.workspaceSidebar) return
 
-    this.appMenuButton?.addEventListener('click', () => this._setAppMenuOpen(!this._appMenuOpen))
+    this.appMenuButton?.addEventListener('click', () => this._setAppMenuOpen(!this._isAppMenuOpen()))
     this.appMenuCloseButton?.addEventListener('click', () => this._setAppMenuOpen(false))
     this.appMenuBackdrop?.addEventListener('click', () => this._setAppMenuOpen(false))
     this.workspaceSidebarButton?.addEventListener('click', () => {
@@ -118,8 +117,9 @@ export class SidebarPanel {
     this.workspaceSidebarBackdrop?.addEventListener('click', () => this._setWorkspaceSidebarOpen(false))
 
     document.addEventListener('keydown', (event) => {
+      const appMenuOpen = this._isAppMenuOpen()
       const workspaceSidebarOpen = this._isWorkspaceSidebarOpen()
-      const activeModal = this._appMenuOpen
+      const activeModal = appMenuOpen
         ? this.appMenu
         : this._isMobileViewport() && workspaceSidebarOpen
           ? this.workspaceSidebar
@@ -129,7 +129,7 @@ export class SidebarPanel {
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
-        if (this._appMenuOpen) this._setAppMenuOpen(false)
+        if (appMenuOpen) this._setAppMenuOpen(false)
         else this._setWorkspaceSidebarOpen(false)
         return
       }
@@ -143,6 +143,10 @@ export class SidebarPanel {
 
   _isMobileViewport() {
     return Boolean(this.viewportMedia?.matches)
+  }
+
+  _isAppMenuOpen() {
+    return Boolean(this.appMenu?.classList.contains('app-menu-open'))
   }
 
   _isWorkspaceSidebarOpen() {
@@ -187,11 +191,11 @@ export class SidebarPanel {
   _setAppMenuOpen(open, { restoreFocus = true } = {}) {
     if (!this.appMenu) return
     const nextOpen = Boolean(open)
-    if (nextOpen && !this._appMenuOpen) {
+    const wasOpen = this._isAppMenuOpen()
+    if (nextOpen && !wasOpen) {
       this._appMenuReturnFocus = document.activeElement
       if (this._isMobileViewport()) this._setWorkspaceSidebarOpen(false, { restoreFocus: false })
     }
-    this._appMenuOpen = nextOpen
     this.appMenu.classList.toggle('app-menu-open', nextOpen)
     this.appMenu.setAttribute('aria-hidden', String(!nextOpen))
     this.appMenuButton?.setAttribute('aria-expanded', String(nextOpen))
@@ -250,7 +254,7 @@ export class SidebarPanel {
   }
 
   _syncModalIsolation() {
-    const menuModal = this._appMenuOpen
+    const menuModal = this._isAppMenuOpen()
     const workspaceSidebarOpen = this._isWorkspaceSidebarOpen()
     const sidebarModal = this._isMobileViewport() && workspaceSidebarOpen
     const anyModal = menuModal || sidebarModal
