@@ -32,6 +32,29 @@ async function createMindMap(page: Page, name = '技术') {
   await expect.poll(() => page.evaluate(() => document.activeElement?.id || '')).toBe('cy')
 }
 
+async function expectDesktopSidebarState(page: Page, open: boolean) {
+  const sidebar = page.locator('#sidebar')
+  const toggle = page.locator('#btn-sidebar-toggle')
+
+  await expect(toggle).toHaveAttribute('aria-expanded', String(open))
+  await expect(sidebar).toHaveAttribute('aria-hidden', String(!open))
+  await expect(sidebar).toHaveJSProperty('inert', !open)
+
+  if (!open) {
+    await expect(sidebar).toHaveClass(/sidebar-collapsed/)
+    await expect(sidebar).toBeHidden()
+    return
+  }
+
+  await expect(sidebar).not.toHaveClass(/sidebar-collapsed/)
+  await expect(sidebar).toBeVisible()
+  const sidebarBox = await sidebar.boundingBox()
+  const viewport = page.viewportSize()
+  expect(sidebarBox).not.toBeNull()
+  expect(sidebarBox?.x ?? -1).toBeGreaterThanOrEqual(0)
+  expect((sidebarBox?.x ?? 0) + (sidebarBox?.width ?? 0)).toBeLessThanOrEqual((viewport?.width ?? 0) + 1)
+}
+
 test.describe('知识图谱编辑器 - E2E', () => {
   test.beforeEach(async ({ page }) => {
     await authenticatePage(page)
@@ -60,13 +83,34 @@ test.describe('知识图谱编辑器 - E2E', () => {
     await expect(page.locator('#menu-shortcuts')).toBeVisible()
 
     await page.keyboard.press('Escape')
-    const graphWidthBefore = (await page.locator('#graph-pane').boundingBox())?.width ?? 0
-    await page.locator('#btn-sidebar-toggle').click()
-    await expect(page.locator('#sidebar')).toBeHidden()
-    await expect(page.locator('#btn-sidebar-toggle')).toHaveAttribute('aria-expanded', 'false')
-    await expect.poll(async () => (await page.locator('#graph-pane').boundingBox())?.width ?? 0).toBeGreaterThan(graphWidthBefore)
-    await page.locator('#btn-sidebar-toggle').click()
-    await expect(page.locator('#sidebar')).toBeVisible()
+    const graphPane = page.locator('#graph-pane')
+    const sidebarToggle = page.locator('#btn-sidebar-toggle')
+    const graphWidthBefore = (await graphPane.boundingBox())?.width ?? 0
+
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      await sidebarToggle.click()
+      await expectDesktopSidebarState(page, false)
+      await expect.poll(async () => (await graphPane.boundingBox())?.width ?? 0).toBeGreaterThan(graphWidthBefore)
+
+      await sidebarToggle.click()
+      await expectDesktopSidebarState(page, true)
+      await expect.poll(async () => Math.abs(((await graphPane.boundingBox())?.width ?? 0) - graphWidthBefore)).toBeLessThanOrEqual(1)
+    }
+
+    // 浏览器恢复页面或响应式切换可能先改变 DOM；按钮必须以实际可见状态为准，
+    // 不能依赖控制器里另一份可能过期的布尔值。
+    await page.evaluate(() => {
+      const sidebar = document.getElementById('sidebar')
+      const toggle = document.getElementById('btn-sidebar-toggle')
+      if (!sidebar) return
+      sidebar.classList.add('sidebar-collapsed')
+      sidebar.setAttribute('aria-hidden', 'true')
+      sidebar.inert = true
+      toggle?.setAttribute('aria-expanded', 'false')
+    })
+    await expectDesktopSidebarState(page, false)
+    await sidebarToggle.click()
+    await expectDesktopSidebarState(page, true)
   })
 
   test('只有中心节点时删除图谱不需要确认', async ({ page }) => {
@@ -310,6 +354,9 @@ test.describe('知识图谱编辑器 - E2E', () => {
 
   test('手机尺寸下移动按钮应该便于点按并可取消', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
+    await page.reload()
+    await page.waitForSelector('#cy canvas', { timeout: 10000 })
+    await page.waitForFunction(() => window.kgStore && window.cy)
     const actionBar = page.locator('#node-action-bar')
     const moveButton = page.locator('#btn-move-node')
     const toolbarSearch = page.locator('#search-input')

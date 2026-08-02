@@ -21,7 +21,6 @@ export class SidebarPanel {
     this._treeClickTimer = null
     this.moveSourceId = null
     this._appMenuOpen = false
-    this._workspaceSidebarOpen = false
     this._appMenuReturnFocus = null
     this._workspaceSidebarReturnFocus = null
 
@@ -113,15 +112,16 @@ export class SidebarPanel {
     this.appMenuCloseButton?.addEventListener('click', () => this._setAppMenuOpen(false))
     this.appMenuBackdrop?.addEventListener('click', () => this._setAppMenuOpen(false))
     this.workspaceSidebarButton?.addEventListener('click', () => {
-      this._setWorkspaceSidebarOpen(!this._workspaceSidebarOpen)
+      this._setWorkspaceSidebarOpen(!this._isWorkspaceSidebarOpen())
     })
     this.workspaceSidebarCloseButton?.addEventListener('click', () => this._setWorkspaceSidebarOpen(false))
     this.workspaceSidebarBackdrop?.addEventListener('click', () => this._setWorkspaceSidebarOpen(false))
 
     document.addEventListener('keydown', (event) => {
+      const workspaceSidebarOpen = this._isWorkspaceSidebarOpen()
       const activeModal = this._appMenuOpen
         ? this.appMenu
-        : this._isMobileViewport() && this._workspaceSidebarOpen
+        : this._isMobileViewport() && workspaceSidebarOpen
           ? this.workspaceSidebar
           : null
       if (!activeModal) return
@@ -143,6 +143,14 @@ export class SidebarPanel {
 
   _isMobileViewport() {
     return Boolean(this.viewportMedia?.matches)
+  }
+
+  _isWorkspaceSidebarOpen() {
+    if (!this.workspaceSidebar) return false
+    if (this._isMobileViewport()) {
+      return this.workspaceSidebar.classList.contains('mobile-sidebar-open')
+    }
+    return !this.workspaceSidebar.classList.contains('sidebar-collapsed')
   }
 
   _syncResponsiveChrome() {
@@ -209,11 +217,11 @@ export class SidebarPanel {
     if (!this.workspaceSidebar) return
     const nextOpen = Boolean(open)
     const mobile = this._isMobileViewport()
-    if (nextOpen && !this._workspaceSidebarOpen) {
+    const wasOpen = this._isWorkspaceSidebarOpen()
+    if (nextOpen && !wasOpen) {
       this._workspaceSidebarReturnFocus = document.activeElement
       if (mobile) this._setAppMenuOpen(false, { restoreFocus: false })
     }
-    this._workspaceSidebarOpen = nextOpen
     this.workspaceSidebar.classList.toggle('sidebar-collapsed', !nextOpen)
     this.workspaceSidebar.classList.toggle('mobile-sidebar-open', mobile && nextOpen)
     this.workspaceSidebar.setAttribute('aria-hidden', String(!nextOpen))
@@ -243,7 +251,8 @@ export class SidebarPanel {
 
   _syncModalIsolation() {
     const menuModal = this._appMenuOpen
-    const sidebarModal = this._isMobileViewport() && this._workspaceSidebarOpen
+    const workspaceSidebarOpen = this._isWorkspaceSidebarOpen()
+    const sidebarModal = this._isMobileViewport() && workspaceSidebarOpen
     const anyModal = menuModal || sidebarModal
 
     if (this.graphPane) this.graphPane.inert = anyModal
@@ -253,7 +262,7 @@ export class SidebarPanel {
     if (this.appMenuButton) this.appMenuButton.inert = anyModal
     if (this.workspaceSidebarButton) this.workspaceSidebarButton.inert = anyModal
     if (this.appMenu) this.appMenu.inert = !menuModal
-    if (this.workspaceSidebar) this.workspaceSidebar.inert = !this._workspaceSidebarOpen || menuModal
+    if (this.workspaceSidebar) this.workspaceSidebar.inert = !workspaceSidebarOpen || menuModal
   }
 
   _trapFocus(container, event) {

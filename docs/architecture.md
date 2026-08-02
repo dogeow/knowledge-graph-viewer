@@ -36,6 +36,7 @@ React 组件保留旧 DOM ID，是为了让现有命令式控制器和 Playwrigh
 | Cytoscape 实例、布局、小地图 | `GraphManager` | 业务持久化 |
 | 防抖、串行保存、临时 ID、删除墓碑 | `GraphSyncService` | UI 选择状态 |
 | 页面结构 | React components | Cytoscape 节点元素 |
+| 工具栏菜单与侧边栏开合 | `SidebarPanel` 写入的 DOM class / ARIA | 与 DOM 并行的私有布尔状态 |
 
 一次 store 变更只能由应用级订阅触发一次 `viewManager.applyView()`。侧栏订阅只更新树、搜索和操作区，不能再次触发整图同步。
 
@@ -47,6 +48,7 @@ React 组件保留旧 DOM ID，是为了让现有命令式控制器和 Playwrigh
 4. 一个区域从旧控制器迁移到 React 后，必须同时移除该区域的直接 DOM 写入，不能长期双重所有权。
 5. 现有 `window.cy` 与 `window.kgStore` 仅作为 E2E 和迁移兼容接口；最终替换为显式命令接口。
 6. 不直接把 timer、Promise、Cytoscape 实例或草稿节点放进 React 状态库。
+7. 迁移期命令式开关必须从当前 DOM class 读取状态，再由同一个方法同步 class、ARIA、`inert` 与遮罩；不得用第二份布尔值推测下一状态。
 
 ## 后续顺序
 
