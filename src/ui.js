@@ -656,6 +656,9 @@ export class SidebarPanel {
     document.getElementById('opt-edge-labels')?.addEventListener('change', (e) => {
       this.viewManager.toggleEdgeLabels(e.target.checked)
     })
+    document.getElementById('edge-display-mode')?.addEventListener('change', (e) => {
+      this.viewManager.setEdgeDisplayMode(e.target.value)
+    })
     document.getElementById('opt-hover')?.addEventListener('change', (e) => {
       this.viewManager.toggleHoverHighlight(e.target.checked)
     })
@@ -789,6 +792,17 @@ export class SidebarPanel {
     })
     const optLabels = document.getElementById('opt-edge-labels')
     if (optLabels) optLabels.checked = st.showEdgeLabels
+    const edgeDisplayMode = document.getElementById('edge-display-mode')
+    if (edgeDisplayMode) edgeDisplayMode.value = st.edgeDisplayMode
+    const edgeDisplayHint = document.getElementById('edge-display-hint')
+    if (edgeDisplayHint) {
+      const stats = this.viewManager.getEdgeDisplayStats()
+      edgeDisplayHint.textContent = st.edgeDisplayMode === 'all'
+        ? `当前显示全部 ${stats.visible} 条关系。`
+        : stats.subdued > 0
+          ? `突出 ${stats.emphasized} 条关键路径，弱化 ${stats.subdued} 条交叉或远端关系；选择或指向节点可查看。`
+          : `当前 ${stats.visible} 条关系均为骨架关系。`
+    }
     const optHover = document.getElementById('opt-hover')
     if (optHover) optHover.checked = st.hoverHighlight
     this._syncTimelineControl(st)

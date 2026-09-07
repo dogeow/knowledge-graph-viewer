@@ -501,6 +501,42 @@ test.describe('知识图谱编辑器 - E2E', () => {
     await expect(page.locator('#val-repulsion')).toHaveText('15000')
   })
 
+  test('高跳数关系图默认降噪并可切换查看全部关系', async ({ page }) => {
+    await page.locator('#focus-depth').fill('5')
+    const displayMode = page.locator('#edge-display-mode')
+    await expect(displayMode).toHaveValue('smart')
+
+    await expect.poll(() => page.evaluate(() => (
+      window.cy?.edges('.edge-secondary').not('.kg-hidden').length ?? 0
+    ))).toBeGreaterThan(0)
+
+    const smartCounts = await page.evaluate(() => ({
+      visible: window.cy?.edges().not('.kg-hidden').length ?? 0,
+      primary: window.cy?.edges('.edge-primary').not('.kg-hidden').length ?? 0,
+      secondary: window.cy?.edges('.edge-secondary').not('.kg-hidden').length ?? 0,
+    }))
+    expect(smartCounts.visible).toBeGreaterThan(0)
+    expect(smartCounts.primary).toBeGreaterThan(0)
+    expect(smartCounts.primary).toBeLessThanOrEqual(36)
+    expect(smartCounts.secondary).toBeGreaterThan(0)
+    expect(smartCounts.primary + smartCounts.secondary).toBe(smartCounts.visible)
+    await expect(page.locator('#edge-display-hint')).toContainText('弱化')
+
+    const secondaryEdgeId = await page.evaluate(() => window.cy?.edges('.edge-secondary').first().id() || '')
+    const endpointId = await page.evaluate((edgeId) => window.cy?.getElementById(edgeId).source().id() || '', secondaryEdgeId)
+    await page.evaluate((nodeId) => window.kgStore?.selectAndFocus(nodeId), endpointId)
+    await expect.poll(() => page.evaluate((edgeId) => (
+      window.cy?.getElementById(edgeId).hasClass('edge-context') ?? false
+    ), secondaryEdgeId)).toBe(true)
+
+    await displayMode.selectOption('all')
+    await expect(page.locator('#edge-display-hint')).toContainText('显示全部')
+    await expect.poll(() => page.evaluate(() => ({
+      primary: window.cy?.edges('.edge-primary').length ?? 0,
+      secondary: window.cy?.edges('.edge-secondary').length ?? 0,
+    }))).toEqual({ primary: 0, secondary: 0 })
+  })
+
   test('应用布局设置应该触发重新布局', async ({ page }) => {
     const applyBtn = page.locator('#btn-apply-layout')
     await expect(applyBtn).toBeVisible()

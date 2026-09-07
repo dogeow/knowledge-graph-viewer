@@ -6,6 +6,7 @@ import {
 } from './chapterUtils.js'
 
 const AGG_PREFIX = '__agg__'
+const DENSE_EDGE_BUDGET = 36
 
 function isHierarchyEdge(edge) {
   return edge?.hierarchy === true || edge?.hierarchy === 'yes' || edge?.type === '子节点'
@@ -28,7 +29,7 @@ export function parseAggregateId(id) {
 
 /**
  * 计算当前应显示的节点/边，以及需要注入的聚合节点
- * @returns {{ visibleNodeIds: Set<string>, visibleEdgeIds: Set<string>, aggregateNodes: Array, hiddenByAggregate: Set<string> }}
+ * @returns {{ visibleNodeIds: Set<string>, visibleEdgeIds: Set<string>, emphasizedEdgeIds: Set<string>, aggregateNodes: Array, hiddenByAggregate: Set<string> }}
  */
 export function computeVisibility({ nodes, edges }, viewState) {
   const enrichedEdges = edges.map(enrichEdge)
@@ -53,6 +54,9 @@ export function computeVisibility({ nodes, edges }, viewState) {
   const adj = buildAdjacency(filteredEdges)
 
   let visibleNodeIds
+  const focusId = timelineOn
+    ? resolveFocusInTimeline(nodes, viewState.focusNodeId, timelineNodes)
+    : resolveFocusNodeId(nodes, viewState.focusNodeId)
 
   // 显示全部：章节过滤只限制出场范围；中心/渐进模式始终按 N 跳展开（章节先收窄可选节点与边）
   if (viewState.viewMode === 'full') {
@@ -60,9 +64,6 @@ export function computeVisibility({ nodes, edges }, viewState) {
       ? new Set([...timelineNodes])
       : new Set(nodes.map((n) => n.id))
   } else {
-    const focusId = timelineOn
-      ? resolveFocusInTimeline(nodes, viewState.focusNodeId, timelineNodes)
-      : resolveFocusNodeId(nodes, viewState.focusNodeId)
     if (!focusId) {
       visibleNodeIds = new Set()
     } else {
@@ -112,7 +113,88 @@ export function computeVisibility({ nodes, edges }, viewState) {
     }
   }
 
-  return { visibleNodeIds, visibleEdgeIds, aggregateNodes, hiddenByAggregate, preAggregateVisibleNodeIds }
+  const visibleEdges = filteredEdges.filter((edge) => visibleEdgeIds.has(edge.id))
+  const isDenseView = viewState.viewMode === 'full'
+    || viewState.focusDepth >= 3
+    || visibleNodeIds.size > 40
+  const emphasizedEdgeIds = computeBackboneEdgeIds(
+    visibleEdges,
+    visibleNodeIds,
+    [focusId, ...(viewState.expandedNodeIds ?? [])],
+    { maxRelationEdges: isDenseView ? DENSE_EDGE_BUDGET : Infinity }
+  )
+
+  return {
+    visibleNodeIds,
+    visibleEdgeIds,
+    emphasizedEdgeIds,
+    aggregateNodes,
+    hiddenByAggregate,
+    preAggregateVisibleNodeIds,
+  }
+}
+
+/**
+ * 为高密度关系图提取稳定的最短路骨架。每个节点只保留一条发现边常显，
+ * 其余交叉关系仍在图中，由“全部关系”或节点上下文临时显示。
+ */
+export function computeBackboneEdgeIds(
+  edges,
+  visibleNodeIds,
+  seedNodeIds = [],
+  { maxRelationEdges = Infinity } = {}
+) {
+  const allowed = visibleNodeIds instanceof Set ? visibleNodeIds : new Set(visibleNodeIds ?? [])
+  const candidates = (edges ?? []).filter(
+    (edge) => allowed.has(edge.source) && allowed.has(edge.target)
+  )
+  const adjacency = new Map([...allowed].map((id) => [id, []]))
+
+  for (const edge of candidates) {
+    adjacency.get(edge.source)?.push({ edge, otherId: edge.target })
+    adjacency.get(edge.target)?.push({ edge, otherId: edge.source })
+  }
+
+  const compareLinks = (a, b) => {
+    const hierarchyDiff = Number(isHierarchyEdge(b.edge)) - Number(isHierarchyEdge(a.edge))
+    if (hierarchyDiff) return hierarchyDiff
+    const nodeDiff = String(a.otherId).localeCompare(String(b.otherId), 'zh-CN')
+    return nodeDiff || String(a.edge.id).localeCompare(String(b.edge.id), 'zh-CN')
+  }
+  adjacency.forEach((links) => links.sort(compareLinks))
+
+  const roots = [
+    ...new Set((seedNodeIds ?? []).filter((id) => allowed.has(id))),
+    ...[...allowed].sort((a, b) => String(a).localeCompare(String(b), 'zh-CN')),
+  ]
+  const visited = new Set()
+  const backbone = new Set()
+  let relationEdgeCount = 0
+
+  for (const rootId of roots) {
+    if (visited.has(rootId)) continue
+    visited.add(rootId)
+    const queue = [rootId]
+    for (let index = 0; index < queue.length; index += 1) {
+      const nodeId = queue[index]
+      for (const { edge, otherId } of adjacency.get(nodeId) ?? []) {
+        if (visited.has(otherId)) continue
+        visited.add(otherId)
+        if (isHierarchyEdge(edge) || relationEdgeCount < maxRelationEdges) {
+          backbone.add(edge.id)
+          if (!isHierarchyEdge(edge)) relationEdgeCount += 1
+        }
+        queue.push(otherId)
+      }
+    }
+  }
+
+  // 思维导图的父子骨架始终常显，即使导入的数据里存在额外层级边。
+  for (const edge of candidates) {
+    if (isHierarchyEdge(edge)) backbone.add(edge.id)
+  }
+
+  return backbone
 }
 
 /** 侧栏聚合按钮：按聚合前可见节点统计同标签人数（≥2 才可折叠） */

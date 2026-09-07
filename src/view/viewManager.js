@@ -16,6 +16,7 @@ export class ViewManager {
     this.state = createDefaultViewState()
     this.listeners = new Set()
     this._aggregateMembers = new Map()
+    this.edgeDisplayStats = { visible: 0, emphasized: 0, subdued: 0 }
   }
 
   init() {
@@ -93,7 +94,7 @@ export class ViewManager {
       this.state.focusNodeId = this.store.pickDefaultFocusNodeId()
     }
 
-    const { visibleNodeIds, visibleEdgeIds, aggregateNodes } = computeVisibility(
+    const { visibleNodeIds, visibleEdgeIds, emphasizedEdgeIds, aggregateNodes } = computeVisibility(
       { nodes, edges },
       this.state
     )
@@ -108,6 +109,12 @@ export class ViewManager {
     const elements = this.store.toCytoscapeElements({ aggregateNodes })
     this.graph.sync(elements, { layout, applyVisibility: false })
     this.graph.applyVisibility(visibleNodeIds, visibleEdgeIds)
+    this.graph.setEdgeDisplayMode(this.state.edgeDisplayMode, emphasizedEdgeIds)
+    this.edgeDisplayStats = {
+      visible: visibleEdgeIds.size,
+      emphasized: emphasizedEdgeIds.size,
+      subdued: Math.max(0, visibleEdgeIds.size - emphasizedEdgeIds.size),
+    }
     this.graph.setShowEdgeLabels(this.state.showEdgeLabels)
     // 思维导图是即时定位布局；sync 后再按实际可见节点缩放，
     // 避免被时间轴或其他可见性状态隐藏的节点仍撑大画布。
@@ -206,6 +213,15 @@ export class ViewManager {
     this.state.showEdgeLabels = show
     this.graph.setShowEdgeLabels(show)
     this._notify()
+  }
+
+  setEdgeDisplayMode(mode) {
+    this.state.edgeDisplayMode = mode === 'all' ? 'all' : 'smart'
+    this.applyView()
+  }
+
+  getEdgeDisplayStats() {
+    return { ...this.edgeDisplayStats }
   }
 
   toggleHoverHighlight(on) {

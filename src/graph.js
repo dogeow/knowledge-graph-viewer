@@ -34,6 +34,9 @@ export class GraphManager {
     this._pendingSingleTap = null
     this._showEdgeLabels = false
     this._hoverHighlight = true
+    this._edgeDisplayMode = 'smart'
+    this._emphasizedEdgeIds = new Set()
+    this._hoverNodeId = null
     this._themeMode = options.themeMode === 'dark' ? 'dark' : 'light'
     this._mindMapStructureSignature = ''
 
@@ -196,7 +199,11 @@ export class GraphManager {
     // 绘制边
     ctx.strokeStyle = palette.edge
     ctx.lineWidth = 0.6
-    eles.edges().forEach((e) => {
+    eles.edges().filter((edge) => (
+      this._edgeDisplayMode === 'all'
+      || !edge.hasClass('edge-secondary')
+      || edge.hasClass('edge-context')
+    )).forEach((e) => {
       const src = e.source().position()
       const tgt = e.target().position()
       if (!this._isFinitePos(src) || !this._isFinitePos(tgt)) return
@@ -694,6 +701,43 @@ export class GraphManager {
     if (!on) this.clearHoverDim()
   }
 
+  setEdgeDisplayMode(mode, emphasizedEdgeIds = new Set()) {
+    this._edgeDisplayMode = mode === 'all' ? 'all' : 'smart'
+    this._emphasizedEdgeIds = emphasizedEdgeIds instanceof Set
+      ? new Set(emphasizedEdgeIds)
+      : new Set(emphasizedEdgeIds ?? [])
+
+    this.cy.batch(() => {
+      this.cy.edges().removeClass('edge-primary edge-secondary edge-context')
+      if (this._edgeDisplayMode === 'smart') {
+        this.cy.edges().not('.kg-hidden').forEach((edge) => {
+          edge.addClass(this._emphasizedEdgeIds.has(edge.id()) ? 'edge-primary' : 'edge-secondary')
+        })
+      }
+      this._refreshContextEdges()
+    })
+    this._scheduleMinimapDraw()
+  }
+
+  _refreshContextEdges() {
+    this.cy.edges().removeClass('edge-context')
+    if (this._edgeDisplayMode !== 'smart') return
+
+    const contextEdges = this.cy.collection()
+    const selected = this.cy.elements('.selected')
+    selected.forEach((element) => {
+      if (element.isNode()) contextEdges.merge(element.connectedEdges())
+      else if (element.isEdge()) contextEdges.merge(element)
+    })
+
+    if (this._hoverNodeId) {
+      const hovered = this.cy.getElementById(this._hoverNodeId)
+      if (hovered.nonempty()) contextEdges.merge(hovered.connectedEdges())
+    }
+
+    contextEdges.edges().not('.kg-hidden').addClass('edge-context')
+  }
+
   applyVisibility(visibleNodeIds, visibleEdgeIds) {
     const allowedNodes = visibleNodeIds instanceof Set ? visibleNodeIds : new Set(visibleNodeIds)
     const allowedEdges = visibleEdgeIds instanceof Set ? visibleEdgeIds : new Set(visibleEdgeIds)
@@ -712,12 +756,16 @@ export class GraphManager {
     const center = this.cy.getElementById(nodeId)
     if (center.empty()) return
     const hood = center.closedNeighborhood()
+    this._hoverNodeId = nodeId
+    this._refreshContextEdges()
     this.cy.elements().addClass('dimmed')
     hood.removeClass('dimmed')
     center.addClass('hover-center')
   }
 
   clearHoverDim() {
+    this._hoverNodeId = null
+    this._refreshContextEdges()
     this.cy.elements().removeClass('dimmed hover-center')
   }
 
@@ -728,6 +776,7 @@ export class GraphManager {
   setSelected(id) {
     this.cy.elements().removeClass('selected')
     if (id) this.cy.getElementById(id).addClass('selected')
+    this._refreshContextEdges()
     // 注意：不触发 _onSelect，避免和 onCanvasDeselect 形成循环调用
     // 选中同步由 Cytoscape tap 事件处理
   }
@@ -1281,6 +1330,40 @@ function buildStyles(showEdgeLabels, themeMode = 'light') {
       }
     )
   }
+
+  // 高跳数关系图默认只突出最短路骨架。交叉关系保留在图中，
+  // 选择/指向其端点时恢复，或切换“全部关系”后全部显示。
+  styles.push(
+    {
+      selector: 'edge.edge-secondary',
+      style: {
+        width: 0.7,
+        opacity: themeMode === 'dark' ? 0.055 : 0.035,
+        'target-arrow-shape': 'none',
+        label: '',
+        events: 'no',
+      },
+    },
+    {
+      selector: 'edge.edge-context',
+      style: {
+        width: 2,
+        opacity: 0.95,
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.8,
+        label: edgeLabel,
+        events: 'yes',
+        'z-index': 8,
+      },
+    },
+    {
+      selector: 'edge.selected',
+      style: {
+        opacity: 1,
+        events: 'yes',
+      },
+    }
+  )
 
   return styles
 }

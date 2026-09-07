@@ -27,6 +27,16 @@ function ViewPanel() {
       </div>
 
       <h3 className="section-title">显示选项</h3>
+      <div className="layout-field edge-display-field">
+        <label htmlFor="edge-display-mode">关系显示</label>
+        <select id="edge-display-mode" defaultValue="smart">
+          <option value="smart">智能降噪</option>
+          <option value="all">全部关系</option>
+        </select>
+        <p id="edge-display-hint" className="hint edge-display-hint">
+          关键路径常显，选择或指向节点可查看直接关系。
+        </p>
+      </div>
       <label className="check-row"><input type="checkbox" id="opt-edge-labels" /> 显示连线文字</label>
       <label className="check-row touch-hover-option"><input type="checkbox" id="opt-hover" defaultChecked /> Hover 高亮相邻</label>
       <label className="check-row"><input type="checkbox" id="opt-night-mode" /> 夜晚模式</label>

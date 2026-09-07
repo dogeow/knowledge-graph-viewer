@@ -15,6 +15,7 @@ export function createDefaultViewState(overrides = {}) {
     focusDepth: 1,
     expandedNodeIds: [],
     activeCategories: defaultActiveCategories(),
+    edgeDisplayMode: 'smart',
     showEdgeLabels: false,
     hoverHighlight: true,
     collapsedOrgIds: [],
@@ -36,6 +37,7 @@ export function loadViewState(graphId) {
       ...saved,
       expandedNodeIds: saved.expandedNodeIds ?? [],
       activeCategories: saved.activeCategories ?? defaultActiveCategories(),
+      edgeDisplayMode: saved.edgeDisplayMode === 'all' ? 'all' : 'smart',
       collapsedOrgIds: saved.collapsedOrgIds ?? [],
       collapsedAggregateKeys: saved.collapsedAggregateKeys ?? [],
     })
@@ -65,6 +67,7 @@ export function saveViewState(graphId, state) {
       focusDepth: state.focusDepth,
       expandedNodeIds: state.expandedNodeIds,
       activeCategories: state.activeCategories,
+      edgeDisplayMode: state.edgeDisplayMode,
       showEdgeLabels: state.showEdgeLabels,
       hoverHighlight: state.hoverHighlight,
       collapsedOrgIds: state.collapsedOrgIds,

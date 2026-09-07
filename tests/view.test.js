@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { inferRelationCategory, enrichEdge, defaultActiveCategories } from '../src/view/relationCategories.js'
-import { computeVisibility, makeAggregateId, isTagCollapsed, getAggregatableTags } from '../src/view/viewController.js'
+import {
+  computeBackboneEdgeIds,
+  computeVisibility,
+  makeAggregateId,
+  isTagCollapsed,
+  getAggregatableTags,
+} from '../src/view/viewController.js'
 import { createDefaultViewState } from '../src/view/viewState.js'
 import { ViewManager } from '../src/view/viewManager.js'
 import { defaultGraph } from '../src/data/defaultGraph.js'
@@ -65,6 +71,77 @@ describe('viewController', () => {
 
     expect(visibleNodeIds.has('b')).toBe(true)
     expect(visibleEdgeIds.has('h1')).toBe(true)
+  })
+
+  it('高密度关系图只保留稳定的最短路骨架常显', () => {
+    const denseEdges = [
+      { id: 'ab', source: 'a', target: 'b', type: '关系' },
+      { id: 'ac', source: 'a', target: 'c', type: '关系' },
+      { id: 'bc', source: 'b', target: 'c', type: '关系' },
+      { id: 'cd', source: 'c', target: 'd', type: '关系' },
+      { id: 'bd', source: 'b', target: 'd', type: '关系' },
+    ]
+
+    const result = computeBackboneEdgeIds(denseEdges, new Set(['a', 'b', 'c', 'd']), ['a'])
+
+    expect([...result]).toEqual(['ab', 'ac', 'bd'])
+    expect(result.size).toBe(3)
+  })
+
+  it('中心展开保留所有可见关系数据，同时标记降噪骨架', () => {
+    const triangleNodes = [
+      { id: 'a', label: 'A' },
+      { id: 'b', label: 'B' },
+      { id: 'c', label: 'C' },
+    ]
+    const triangleEdges = [
+      { id: 'ab', source: 'a', target: 'b', type: '关系' },
+      { id: 'ac', source: 'a', target: 'c', type: '关系' },
+      { id: 'bc', source: 'b', target: 'c', type: '关系' },
+    ]
+    const state = createDefaultViewState({
+      viewMode: 'focus',
+      focusNodeId: 'a',
+      focusDepth: 2,
+      activeCategories: defaultActiveCategories(),
+    })
+
+    const result = computeVisibility({ nodes: triangleNodes, edges: triangleEdges }, state)
+
+    expect(result.visibleEdgeIds).toEqual(new Set(['ab', 'ac', 'bc']))
+    expect(result.emphasizedEdgeIds).toEqual(new Set(['ab', 'ac']))
+  })
+
+  it('思维导图层级关系始终属于降噪骨架', () => {
+    const hierarchyEdges = [
+      { id: 'ab', source: 'a', target: 'b', type: '子节点', hierarchy: true },
+      { id: 'bc', source: 'b', target: 'c', type: '子节点', hierarchy: true },
+      { id: 'ac', source: 'a', target: 'c', type: '子节点', hierarchy: true },
+    ]
+
+    const result = computeBackboneEdgeIds(hierarchyEdges, new Set(['a', 'b', 'c']), ['a'])
+
+    expect(result).toEqual(new Set(['ab', 'ac', 'bc']))
+  })
+
+  it('高密度视图可限制常显关系数量但不会删除关系', () => {
+    const denseEdges = Array.from({ length: 60 }, (_, index) => ({
+      id: `e${index}`,
+      source: `n${index}`,
+      target: `n${index + 1}`,
+      type: '关系',
+    }))
+    const visibleNodeIds = new Set(Array.from({ length: 61 }, (_, index) => `n${index}`))
+
+    const result = computeBackboneEdgeIds(
+      denseEdges,
+      visibleNodeIds,
+      ['n0'],
+      { maxRelationEdges: 36 }
+    )
+
+    expect(result.size).toBe(36)
+    expect(denseEdges).toHaveLength(60)
   })
 
   it('聚合节点 ID 可解析', () => {
@@ -224,6 +301,7 @@ describe('ViewManager 视图模式', () => {
     const graph = {
       sync: (_elements, options) => calls.push(['sync', options]),
       applyVisibility: (nodeIds) => calls.push(['visibility', nodeIds]),
+      setEdgeDisplayMode: () => {},
       setShowEdgeLabels: () => {},
       fitToVisibleNodes: (nodeIds) => calls.push(['fit', nodeIds]),
     }
