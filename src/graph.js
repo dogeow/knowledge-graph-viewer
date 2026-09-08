@@ -98,12 +98,39 @@ export class GraphManager {
     this.cy.on('add remove', () => this._scheduleMinimapDraw())
     this.cy.on('layoutstop', () => this._scheduleMinimapDraw())
 
-    this.minimapEl.addEventListener('click', (e) => {
+    const navigateFromPointer = (e) => {
       const rect = this.minimapEl.getBoundingClientRect()
       const x = e.clientX - rect.left
       const y = e.clientY - rect.top
       this._navigateToMinimapPoint(x, y, rect.width, rect.height)
+    }
+
+    const finishPointerNavigation = (e, navigate = false) => {
+      if (e.pointerId !== this._minimapPointerId) return
+      if (navigate) navigateFromPointer(e)
+      this._minimapPointerId = null
+      this.minimapEl.classList.remove('dragging')
+      if (this.minimapEl.hasPointerCapture?.(e.pointerId)) {
+        this.minimapEl.releasePointerCapture(e.pointerId)
+      }
+    }
+
+    this.minimapEl.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      e.preventDefault()
+      this._minimapPointerId = e.pointerId
+      this.minimapEl.setPointerCapture?.(e.pointerId)
+      this.minimapEl.classList.add('dragging')
+      navigateFromPointer(e)
     })
+    this.minimapEl.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== this._minimapPointerId) return
+      e.preventDefault()
+      navigateFromPointer(e)
+    })
+    this.minimapEl.addEventListener('pointerup', (e) => finishPointerNavigation(e, true))
+    this.minimapEl.addEventListener('pointercancel', (e) => finishPointerNavigation(e))
+    this.minimapEl.addEventListener('lostpointercapture', (e) => finishPointerNavigation(e))
 
     if (typeof ResizeObserver !== 'undefined') {
       this._minimapResizeObserver = new ResizeObserver(() => this._scheduleMinimapDraw())
