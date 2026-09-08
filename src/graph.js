@@ -23,6 +23,18 @@ const MIND_MAP_ROOT_GAP = 230
 const MIND_MAP_LEVEL_GAP = 190
 const MIND_MAP_ROW_GAP = 96
 
+export function getMinimapNodeRadius(nodeCount, emphasized = false) {
+  const count = Math.max(0, Number(nodeCount) || 0)
+  const baseRadius = count >= 80
+    ? 1.25
+    : count >= 40
+      ? 1.5
+      : count >= 20
+        ? 1.75
+        : 2
+  return emphasized ? Math.min(2.5, baseRadius + 0.9) : baseRadius
+}
+
 export class GraphManager {
   constructor(container, options = {}) {
     this.container = container
@@ -246,13 +258,16 @@ export class GraphManager {
       ctx.stroke()
     })
 
-    // 绘制叶节点
-    eles.nodes().filter((n) => !n.isParent()).forEach((n) => {
+    // 绘制叶节点。密集图按节点数量缩小普通点，选中/高亮点仍保持醒目。
+    const leafNodes = eles.nodes().filter((n) => !n.isParent())
+    const minimapNodeCount = leafNodes.length
+    leafNodes.forEach((n) => {
       const pos = n.position()
       if (!this._isFinitePos(pos)) return
       const p = mapPoint(pos.x, pos.y)
       if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return
-      const r = 2.5
+      const emphasized = n.hasClass('selected') || n.hasClass('highlighted')
+      const r = getMinimapNodeRadius(minimapNodeCount, emphasized)
 
       ctx.fillStyle = n.hasClass('selected')
         ? palette.selected
